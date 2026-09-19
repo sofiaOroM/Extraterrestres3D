@@ -1,32 +1,22 @@
 package sofiaO.ast.expresion;
 
-import sofiaO.ast.ASTNode;
 import sofiaO.ast.ASTVisitor;
+import sofiaO.ast.BaseNode;
+import sofiaO.ast.Expression;
 
-public class BinaryExprNode implements ASTNode {
-    public int line;
-    public int column;
-    public String op;           // "+", "-", "*", "/"
-    public ASTNode izquierda, derecha;
+/** a + b, a * b, a && b, a == b, etc. (los 3 lenguajes) */
+public class BinaryExprNode extends BaseNode implements Expression {
+    public String operador; // +, -, *, /, %, ==, !=, <, >, <=, >=, &&, ||
+    public Expression izquierda;
+    public Expression derecha;
 
-    public BinaryExprNode(int line, int column, String op, ASTNode izq, ASTNode der) {
-        this.line = line;
-        this.column = column;
-        this.op = op; this.izquierda = izq; this.derecha = der;
-    }
-
-    public <T> T accept(ASTVisitor<T> v) {
-        return v.visit(this);
-    }
-
-    @Override
-    public int getLine() {
-        return line;
+    public BinaryExprNode(String operador, Expression izquierda, Expression derecha, int line, int column) {
+        super(line, column);
+        this.operador = operador;
+        this.izquierda = izquierda;
+        this.derecha = derecha;
     }
 
     @Override
-    public int getColumn() {
-        return column;
-    }
+    public <T> T accept(ASTVisitor<T> v) { return v.visit(this); }
 }
-
