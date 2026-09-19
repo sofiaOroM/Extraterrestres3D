@@ -24,7 +24,12 @@ public class SymbolTable {
 
     // Registra una nueva variable
     public void declarar(String nombre, Type tipo, int line, int column) {
-        tablaActual.put(nombre, new Symbol(nombre, tipo, line, column));
+        declarar(nombre, tipo, null, line, column);
+    }
+
+    /** Permite registrar el nombre real de una estructura/clase. */
+    public void declarar(String nombre, Type tipo, String tipoUsuario, int line, int column) {
+        tablaActual.put(nombre, new Symbol(nombre, tipo, tipoUsuario, line, column));
     }
 
     // Busca una variable desde el scope actual subiendo hasta el global
