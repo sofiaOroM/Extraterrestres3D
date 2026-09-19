@@ -1,30 +1,18 @@
 package sofiaO.ast.expresion;
 
-import sofiaO.ast.ASTNode;
 import sofiaO.ast.ASTVisitor;
+import sofiaO.ast.BaseNode;
+import sofiaO.ast.Expression;
 
-public class LiteralNode implements ASTNode {
-    public int line;
-    public int column;
-    public String valor;   // "25", "36.6", "\"texto\""
+/** 25, 36.6, "texto", 'a', verdadero/true/verum, falso/false/falsus, null */
+public class LiteralNode extends BaseNode implements Expression {
+    public String valorCrudo; // texto tal cual vino del token
 
-    public LiteralNode(int line, int column, String valor) {
-        this.line = line;
-        this.column = column;
-        this.valor = valor;
-    }
-
-    public <T> T accept(ASTVisitor<T> v) {
-        return v.visit(this);
+    public LiteralNode(String valorCrudo, int line, int column) {
+        super(line, column);
+        this.valorCrudo = valorCrudo;
     }
 
     @Override
-    public int getLine() {
-        return line;
-    }
-
-    @Override
-    public int getColumn() {
-        return column;
-    }
+    public <T> T accept(ASTVisitor<T> v) { return v.visit(this); }
 }
