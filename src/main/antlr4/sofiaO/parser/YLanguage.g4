@@ -3,34 +3,34 @@ grammar YLanguage;
 // PROGRAMA
 
 programa
-    : seccionEstructuras? seccionFunciones EOF
+    : (NL | INDENT | DEDENT)* seccionEstructuras? (NL | INDENT | DEDENT)* seccionFunciones (NL | INDENT | DEDENT)* EOF
     ;
 
 // SECCION DE ESTRUCTURAS (opcional, puede tener varias estructuras)
 
 seccionEstructuras
-    : ESTRUCTURASKEY declaracionEstructuras+
+    : ESTRUCTURASKEY (NL | INDENT)+ declaracionEstructuras+ (NL | DEDENT)*
     ;
 
 declaracionEstructuras
-    : ESTRUCTURA ID ':' atributoEstructura+
+    : ESTRUCTURA ID ':' (NL | INDENT)+ atributoEstructura+ (NL | DEDENT)*
     ;
 
 // Un atributo puede ser un tipo simple, un tipo anidado (otra estructura)
 // o un arreglo de tamaño constante (obligatorio dentro de estructuras)
 atributoEstructura
-    : tipo ID ('[' ENTERO ']')*
+    : tipo ID ('[' ENTERO ']')* (NL | DEDENT)*
     ;
 
 // SECCION DE FUNCIONES (obligatoria, una o más funciones)
 
 seccionFunciones
-    : FUNCIONESKEY declaracionFunciones+
+    : FUNCIONESKEY (NL | INDENT)+ declaracionFunciones+ (NL | DEDENT)*
     ;
 
 declaracionFunciones
-    : DEFINIR ID '(' parametros? ')' ':' declaracionEstructuras? bloqueFuncion
-    | DEFINIR ID '(' parametros? ')' RETORNO tipo ':' bloqueFuncion
+    //:DEFINIR ID '(' parametros? ')' ':' declaracionEstructuras? bloqueFuncion
+    : DEFINIR ID '(' parametros? ')' (RETORNO tipo)? ':' NL* bloqueFuncion
     ;
 
 parametros
@@ -47,13 +47,14 @@ parametro
     ;
 
 bloqueFuncion
-    : sentencia*
+    : INDENT NL* sentencia+ DEDENT
+    | sentencia+
     ;
 
 // SENTENCIAS
 
 sentencia
-    : declaracionVariableLocal
+    : ( declaracionVariableLocal
     | declaracionArrayLocal
     | asignacion
     | incremento
@@ -66,6 +67,7 @@ sentencia
     | interrupcion
     | retorno
     | llamadaFuncion
+    ) NL*
     ;
 
 // ---------------- Declaraciones locales ----------------
@@ -138,23 +140,23 @@ salida
 
 // si(...) entonces / sino(...) entonces / contrario
 condicional
-    : SI '(' expresion ')' ENTONCES bloqueFuncion
-      (SINO '(' expresion ')' ENTONCES bloqueFuncion)*
-      (CONTRARIO bloqueFuncion)?
+    : SI '(' expresion ')' ENTONCES NL* bloqueFuncion
+      (SINO '(' expresion ')' ENTONCES NL* bloqueFuncion)*
+      (CONTRARIO NL* bloqueFuncion)?
     | condicionalElegir
     ;
 
 // elegir(opcion): caso 1: ... romper  ... siempre: ... romper
 condicionalElegir
-    : ELEGIR '(' expresion ')' ':' casoElegir+ casoDefault?
+    : ELEGIR '(' expresion ')' ':' (NL | INDENT)* casoElegir+ casoDefault? DEDENT?
     ;
 
 casoElegir
-    : CASO (ENTERO | ID) ':' bloqueFuncion
+    : CASO (ENTERO | ID) ':' (NL | INDENT)* bloqueFuncion
     ;
 
 casoDefault
-    : SIEMPRE ':' bloqueFuncion
+    : SIEMPRE ':' (NL | INDENT)* bloqueFuncion
     ;
 
 // ---------------- Ciclos ----------------
@@ -162,17 +164,17 @@ casoDefault
 
 // mientras(...) hacer
 cicloWhile
-    : MIENTRAS '(' expresion ')' HACER bloqueFuncion
+    : MIENTRAS '(' expresion ')' HACER NL* bloqueFuncion
     ;
 
 // hacer: ... mientras(...)
 cicloDo
-    : HACER ':' bloqueFuncion MIENTRAS '(' expresion ')'
+    : HACER ':'? NL* bloqueFuncion MIENTRAS '(' expresion ')'
     ;
 
 // para(entero i = 0; i < 10; i++):
 cicloFor
-    : PARA '(' (declaracionVariableLocal | asignacion) ';' expresion ';' (incremento | asignacion) ')' ':' bloqueFuncion
+    : PARA '(' (declaracionVariableLocal | asignacion) ';' expresion ';' (incremento | asignacion) ')' ':'? NL* bloqueFuncion
     ;
 
 // ---------------- Interrupciones de flujo ----------------
@@ -211,7 +213,7 @@ expresion
     | literal                                       # exprLiteral
     | expresion op=('*'|'/') expresion              # exprMultiplicativo
     | expresion op=('+'|'-') expresion              # exprAditivo
-    | expresion op=('=='|'!='|'<'|'>') expresion    # exprRelacional
+    | expresion op=('=='|'!='|'<='|'>='|'<'|'>') expresion    # exprRelacional
     | expresion op=('&&'|'||') expresion            # exprLogico
     ;
 
@@ -309,9 +311,11 @@ CARACTER_LITERAL : '\'' (~['\\] | '\\' .) '\'';
 // ---- Comentarios y espacios en blanco ----
 LINE_COMMENT  : '//' ~[\r\n]* -> skip;
 BLOCK_COMMENT : '/*' .*? '*/' -> skip;
-WS            : [ \t\r\n]+ -> skip;
+NL : ('\r'? '\n')+ [ \t]* ;
+WS : [ \t]+ -> skip ;
 
-
+INDENT : 'INDENT_TOKEN_DUMMY' ;
+DEDENT : 'DEDENT_TOKEN_DUMMY' ;
 // PUNTOYCOMA : ';';
 // -> Aparece solo 2 veces en todo el documento ("contador++;" y
 //    "continuar;"), ambas dentro de la sección de Ciclos, mientras
