@@ -2,33 +2,34 @@ package sofiaO.ast.declaracion;
 
 import sofiaO.ast.ASTNode;
 import sofiaO.ast.ASTVisitor;
+import sofiaO.ast.BaseNode;
+import sofiaO.ast.Declaration;
+import sofiaO.ast.Statement;
 
-public class VarDeclNode implements ASTNode {
-    public int line;
-    public int column;
-    public String tipo;          // "entero", "int", "numerus" -> normalizado a un Type
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * entero edadUsuario = 25          (Y?)
+ * int total = fuerza * 2;          (Zetariano)
+ * esto total : numerus fuerza*2;   (Pig Latin)
+ *
+ */
+public class VarDeclNode extends BaseNode implements Statement, Declaration {
+    public String tipo;
     public String nombre;
-    public ASTNode inicializador; // puede ser null (sin valor inicial)
+    public List<Integer> dimensionesArreglo; // vacío si no es arreglo
+    public ASTNode inicializador;            // Expression o ArrayLiteralNode; null si no tiene
 
-    public VarDeclNode(int line, int column, String tipo, String nombre, ASTNode inicializador) {
-        this.line = line;
-        this.column = column;
+    public VarDeclNode(String tipo, String nombre, List<Integer> dimensionesArreglo,
+                       ASTNode inicializador, int line, int column) {
+        super(line, column);
         this.tipo = tipo;
         this.nombre = nombre;
+        this.dimensionesArreglo = dimensionesArreglo == null ? Collections.emptyList() : dimensionesArreglo;
         this.inicializador = inicializador;
     }
 
-    public <T> T accept(ASTVisitor<T> v) {
-        return v.visit(this);
-    }
-
     @Override
-    public int getLine() {
-        return line;
-    }
-
-    @Override
-    public int getColumn() {
-        return column;
-    }
+    public <T> T accept(ASTVisitor<T> v) { return v.visit(this); }
 }
