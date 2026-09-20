@@ -9,7 +9,7 @@ programa
 // SECCION DE ESTRUCTURAS (opcional, puede tener varias estructuras)
 
 seccionEstructuras
-    : ESTRUCTURASKEY (NL | INDENT)+ declaracionEstructuras+ (NL | DEDENT)*
+    : ESTRUCTURASKEY (NL | INDENT)+ declaracionEstructuras (NL* declaracionEstructuras)*  (NL | DEDENT)*
     ;
 
 declaracionEstructuras
@@ -25,7 +25,7 @@ atributoEstructura
 // SECCION DE FUNCIONES (obligatoria, una o más funciones)
 
 seccionFunciones
-    : FUNCIONESKEY (NL | INDENT)+ declaracionFunciones+ (NL | DEDENT)*
+    : FUNCIONESKEY (NL | INDENT)+ declaracionFunciones (NL* declaracionFunciones)* (NL | DEDENT)*
     ;
 
 declaracionFunciones
