@@ -24,6 +24,9 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
     public final Map<String, Type> tiposDeLugares = new LinkedHashMap<>();
     private final Map<String, List<Integer>> dimensionesArreglos = new HashMap<>();
 
+    private Set<String> atributosDeClaseActual = Collections.emptySet();
+    private Set<String> localesDelMetodoActual = new HashSet<>();
+
     private static class EtiquetasCiclo {
         final String continuar;
         final String romper;
@@ -103,8 +106,14 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
     @Override
     public String visit(ClassDeclNode n) {
         TypeMapper.registrarTipoUsuario(n.nombre, Type.CLASE);
+        Set<String> nombresAtributos = new HashSet<>();
+        for (var atributo : n.atributos) nombresAtributos.add(atributo.nombre);
+        atributosDeClaseActual = nombresAtributos;
+
         for (var c : n.constructores) c.accept(this);
         for (var m : n.metodos) m.accept(this);
+
+        atributosDeClaseActual = Collections.emptySet();
         return null;
     }
 
@@ -112,11 +121,15 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
     public String visit(FunctionDeclNode n) {
         String nombreCompleto = n.esMetodo ? n.claseDuena + "_" + n.nombre : n.nombre;
         emit("func", null, null, nombreCompleto, Type.VOID);
+
+        localesDelMetodoActual = new HashSet<>();
         if (n.esMetodo) {
             emit("param", "this", null, null, Type.CLASE);
             tiposDeLugares.put("this", Type.CLASE);
             tiposUsuarioDeLugares.put("this", n.claseDuena);
         }
+        for (ParamNode p : n.parametros) localesDelMetodoActual.add(p.nombre);
+
         for (ParamNode p : n.parametros) p.accept(this);
         for (Statement s : n.cuerpo) s.accept(this);
         emit("endfunc", null, null, nombreCompleto, Type.VOID);
@@ -130,6 +143,9 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
         emit("param", "this", null, null, Type.CLASE);
         tiposDeLugares.put("this", Type.CLASE);
         tiposUsuarioDeLugares.put("this", n.claseDuena);
+
+        localesDelMetodoActual = new HashSet<>();
+        for (ParamNode p : n.parametros) localesDelMetodoActual.add(p.nombre);
 
         for (ParamNode p : n.parametros) p.accept(this);
         for (Statement s : n.cuerpo) s.accept(this);
@@ -215,7 +231,10 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
 
     private void escribirEnDestino(Expression destino, String valor) {
         if (destino instanceof IdentifierNode id) {
-            emit("=", valor, null, id.nombre, tipoDeLugar(id.nombre));
+            String lugar = (atributosDeClaseActual.contains(id.nombre) && !localesDelMetodoActual.contains(id.nombre))
+                    ? "this->" + id.nombre
+                    : id.nombre;
+            emit("=", valor, null, lugar, tipoDeLugar(id.nombre));
             return;
         }
 
@@ -517,6 +536,9 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
 
     @Override
     public String visit(IdentifierNode n) {
+        if (atributosDeClaseActual.contains(n.nombre) && !localesDelMetodoActual.contains(n.nombre)) {
+            return "this->" + n.nombre;
+        }
         return n.nombre;
     }
 
