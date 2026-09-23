@@ -1,0 +1,175 @@
+/* Tema oscuro de Extraterrestre3D.
+   Base: azul noche. Acento ámbar (la baliza de auxilio) solo para lo que importa: compilar y el foco. */
+
+.root {
+    -fx-base: #171e30;
+    -fx-background: #101522;
+    -fx-control-inner-background: #131a2b;
+    -fx-control-inner-background-alt: #151d31;
+    -fx-accent: #3b5b94;
+    -fx-focus-color: #e0a63c;
+    -fx-faint-focus-color: transparent;
+    -fx-text-base-color: #d5dcec;
+    -fx-selection-bar: #3b5b94;
+    -fx-selection-bar-non-focused: #2f4568;
+    -fx-selection-bar-text: #ffffff;
+    -fx-font-family: "Segoe UI", "Inter", "Ubuntu", "Helvetica Neue", sans-serif;
+    -fx-font-size: 13px;
+}
+
+/* ---------- paneles y barras ---------- */
+
+.titulo-panel {
+    -fx-font-weight: bold;
+    -fx-text-fill: #9fb0d1;
+    -fx-padding: 7 10 7 10;
+}
+
+.nombre-previa {
+    -fx-text-fill: #7b88a6;
+}
+
+.panel-arbol, .vista-previa {
+    -fx-background-color: #131a2b;
+}
+
+.barra-herramientas {
+    -fx-padding: 8 12 8 12;
+    -fx-background-color: #151c2e;
+    -fx-border-color: transparent transparent #263049 transparent;
+}
+
+.barra-estado {
+    -fx-padding: 5 12 5 12;
+    -fx-background-color: #0e1320;
+}
+
+.barra-estado .label {
+    -fx-text-fill: #8f9bb8;
+    -fx-font-size: 12px;
+}
+
+.barra-panel {
+    -fx-padding: 6 10 6 10;
+    -fx-background-color: #151c2e;
+}
+
+.vacio, .vacio .label {
+    -fx-text-fill: #7b88a6;
+    -fx-font-size: 14px;
+    -fx-text-alignment: center;
+}
+
+.boton-primario {
+    -fx-background-color: #e0a63c;
+    -fx-text-fill: #1b1608;
+    -fx-font-weight: bold;
+    -fx-background-radius: 4;
+    -fx-padding: 6 18 6 18;
+}
+
+.boton-primario:hover {
+    -fx-background-color: #eab857;
+}
+
+.boton-primario:pressed {
+    -fx-background-color: #c98f2a;
+}
+
+.boton-primario:disabled {
+    -fx-opacity: 0.5;
+}
+
+/* ---------- árbol de archivos ---------- */
+
+.tree-cell.carpeta {
+    -fx-font-weight: bold;
+}
+
+.tree-cell.arch-y {
+    -fx-text-fill: #58c7d4;
+}
+
+.tree-cell.arch-z {
+    -fx-text-fill: #b79cff;
+}
+
+.tree-cell.arch-pig {
+    -fx-text-fill: #f0c36e;
+}
+
+/* ---------- editor (CodeArea) ---------- */
+
+.code-area, .editor {
+    -fx-background-color: #101522;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas", "DejaVu Sans Mono", "Menlo", monospace;
+}
+
+.code-area .text {
+    -fx-fill: #d5dcec;
+}
+
+.code-area .lineno {
+    -fx-text-fill: #56617f;
+    -fx-background-color: #0e1320;
+    -fx-padding: 0 10 0 14;
+}
+
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: #161e33;
+}
+
+.code-area .caret {
+    -fx-stroke: #f2c265;
+}
+
+.code-area .selection {
+    -fx-fill: #34508a;
+}
+
+/* colores del resaltado (los nombres vienen de sofiaO.resaltado.Estilos) */
+.code-area .kw    { -fx-fill: #b79cff; }
+.code-area .tipo  { -fx-fill: #58c7d4; }
+.code-area .lit   { -fx-fill: #ff9f6e; }
+.code-area .num   { -fx-fill: #e8b86b; }
+.code-area .str   { -fx-fill: #8fd694; }
+.code-area .com   { -fx-fill: #6b7793; }
+.code-area .op    { -fx-fill: #9fb0d1; }
+.code-area .fn    { -fx-fill: #7cb7ff; }
+.code-area .cls   { -fx-fill: #ffd479; }
+.code-area .sec   { -fx-fill: #ff8fb1; -fx-font-weight: bold; }
+.code-area .tmp   { -fx-fill: #7cb7ff; }
+.code-area .etq   { -fx-fill: #ff8fb1; }
+
+/* errores: subrayado punteado rojo sobre el color normal del texto */
+.code-area .error {
+    -rtfx-underline-color: #ff6b7a;
+    -rtfx-underline-width: 1.6px;
+    -rtfx-underline-dash-array: 3 2;
+    -rtfx-background-color: rgba(255, 107, 122, 0.16);
+}
+
+/* ---------- tablas de resultados ---------- */
+
+.resumen {
+    -fx-text-fill: #9fb0d1;
+}
+
+.resumen-ok {
+    -fx-text-fill: #6fd3a0;
+    -fx-font-weight: bold;
+}
+
+.resumen-error {
+    -fx-text-fill: #ff8d99;
+    -fx-font-weight: bold;
+}
+
+.table-cell.tipo-lexico     { -fx-text-fill: #ffb86b; -fx-font-weight: bold; }
+.table-cell.tipo-sintactico { -fx-text-fill: #ff8d99; -fx-font-weight: bold; }
+.table-cell.tipo-semantico  { -fx-text-fill: #7cb7ff; -fx-font-weight: bold; }
+.table-cell.tipo-interno    { -fx-text-fill: #c9a0ff; -fx-font-weight: bold; }
+
+.tabla-mono .table-cell {
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas", "DejaVu Sans Mono", "Menlo", monospace;
+}
