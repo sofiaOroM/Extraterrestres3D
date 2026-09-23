@@ -15,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Analizador semántico único, compartido por Y?, Zetariano y Pig Latin.
@@ -25,6 +27,52 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     private final ProgramContext contexto;
     private ResolvedType tipoRetornoFuncionActual = null;
     private int profundidadCiclo = 0;
+
+    private final List<SemanticException> errores = new ArrayList<>();
+    private static final Pattern LINEA_EN_MENSAJE = Pattern.compile("\\(línea (\\d+)\\)");
+    private static final Pattern TIPO_ERROR = Pattern.compile("(?<![A-Za-z])ERROR(?![A-Za-z])");
+
+    public List<SemanticException> getErrores() { return errores; }
+
+    private void analizarAislado(ASTNode nodo) {
+        SymbolTable scopePrevio = scopeActual;
+        int cicloPrevio = profundidadCiclo;
+        ResolvedType retornoPrevio = tipoRetornoFuncionActual;
+        try {
+            nodo.accept(this);
+        } catch (SemanticException e) {
+            scopeActual = scopePrevio;
+            profundidadCiclo = cicloPrevio;
+            tipoRetornoFuncionActual = retornoPrevio;
+
+            // Un tipo ERROR en el mensaje es consecuencia de un fallo anterior: no se repite.
+            if (!TIPO_ERROR.matcher(e.getMessage()).find()) {
+                if (!e.tieneUbicacion()) {
+                    int linea = nodo.getLine();
+                    int columna = nodo.getColumn();
+                    Matcher m = LINEA_EN_MENSAJE.matcher(e.getMessage());
+                    if (m.find()) {
+                        int lineaMensaje = Integer.parseInt(m.group(1));
+                        if (lineaMensaje != linea) { linea = lineaMensaje; columna = 0; }
+                    }
+                    e.setUbicacion(linea, columna);
+                }
+                errores.add(e);
+            }
+            if (nodo instanceof VarDeclNode v) declararTrasError(v);
+        }
+    }
+
+    /** Si una declaración falla, se registra igual para no provocar errores en cascada. */
+    private void declararTrasError(VarDeclNode v) {
+        if (scopeActual.existeEnScopeActual(v.nombre)) return;
+        try {
+            ResolvedType rt = resolverTipoDeclarado(v.tipo, v.getLine());
+            scopeActual.declarar(v.nombre, rt.tipo(), rt.tipoUsuario(), v.getLine(), v.getColumn());
+        } catch (SemanticException ignorada) {
+            scopeActual.declarar(v.nombre, Type.ERROR, null, v.getLine(), v.getColumn());
+        }
+    }
 
     public SemanticAnalyzer(SymbolTable scopeGlobal, ProgramContext contexto) {
         this.scopeActual = scopeGlobal;
@@ -149,38 +197,44 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
 
     @Override
     public Type visit(ImportNode n) {
-        boolean hayAlgoRegistrado = (n.tipo == ImportNode.TipoImport.CLASE_Z)
-                ? !contexto.classes.isEmpty()
-                : (!contexto.structs.isEmpty() || !contexto.funciones.isEmpty());
+        String[] partes = n.ruta.split("\\.");
+        if (partes.length < 2) return Type.VOID;
 
-        if (!hayAlgoRegistrado) {
-            throw new SemanticException("El import '" + n.ruta + "' no tiene nada cargado en el "
-                    + "ProgramContext. ¿Olvidaste llamar a cargarEstructurasYFunciones()/cargarClase() "
-                    + "para ese archivo antes de compilarPrincipal()? (línea " + n.getLine() + ")");
+        String posibleNombreTipo = partes[partes.length - 2];
+        boolean existe = (n.tipo == ImportNode.TipoImport.CLASE_Z)
+                ? contexto.classes.containsKey(posibleNombreTipo)
+                : (contexto.structs.containsKey(posibleNombreTipo) || contexto.funciones.containsKey(posibleNombreTipo));
+
+        if (!existe) {
+            throw new SemanticException("No se encontró nada registrado para el import '" + n.ruta
+                    + "' (se esperaba encontrar '" + posibleNombreTipo + "'). "
+                    + "Verifica que ese archivo se haya procesado antes (línea " + n.getLine() + ")");
         }
         return Type.VOID;
     }
 
     @Override
     public Type visit(StructDeclNode n) {
+        contexto.structs.put(n.nombre, n);
+
         Map<String, ResolvedType> layout = new LinkedHashMap<>();
         for (FieldNode campo : n.campos) {
             campo.accept(this);
             layout.put(campo.nombre, new ResolvedType(campo.tipoResuelto, campo.tipoUsuarioResuelto));
         }
-        contexto.structs.put(n.nombre, n);
         contexto.layoutsEstructuras.put(n.nombre, layout);
         return Type.VOID;
     }
 
     @Override
     public Type visit(ClassDeclNode n) {
+        contexto.classes.put(n.nombre, n);
+
         Map<String, ResolvedType> layout = new LinkedHashMap<>();
         for (FieldNode atributo : n.atributos) {
             atributo.accept(this);
             layout.put(atributo.nombre, new ResolvedType(atributo.tipoResuelto, atributo.tipoUsuarioResuelto));
         }
-        contexto.classes.put(n.nombre, n);
         contexto.layoutsClases.put(n.nombre, layout);
 
         Map<String, FunctionDeclNode> metodos = new LinkedHashMap<>();
@@ -200,6 +254,7 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
 
         abrirScope();
         if (n.esMetodo && n.claseDuena != null) {
+            scopeActual.declarar("this", Type.CLASE, n.claseDuena, n.getLine(), n.getColumn());
             precargarAtributosDeClase(n.claseDuena);
         }
         for (ParamNode p : n.parametros) p.accept(this);
@@ -213,6 +268,7 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     @Override
     public Type visit(ConstructorDeclNode n) {
         abrirScope();
+        scopeActual.declarar("this", Type.CLASE, n.claseDuena, n.getLine(), n.getColumn());
         precargarAtributosDeClase(n.claseDuena);
         for (ParamNode p : n.parametros) p.accept(this);
         for (Statement s : n.cuerpo) s.accept(this);
