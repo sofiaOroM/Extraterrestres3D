@@ -141,8 +141,8 @@ salida
 // si(...) entonces / sino(...) entonces / contrario
 condicional
     : SI '(' expresion ')' ENTONCES NL* bloqueFuncion
-      (SINO '(' expresion ')' ENTONCES NL* bloqueFuncion)*
-      (CONTRARIO NL* bloqueFuncion)?
+      (NL* SINO '(' expresion ')' ENTONCES NL* bloqueFuncion)*
+      (NL* CONTRARIO NL* bloqueFuncion)?
     | condicionalElegir
     ;
 
