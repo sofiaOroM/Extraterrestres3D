@@ -477,7 +477,7 @@ public class ZetarianoASTBuilder extends ZetarianoLanguageBaseVisitor<ASTNode> {
         // una llamada sin argumentos "()").
         String primerToken = ctx.getChild(0).getText();
         if (primerToken.equals(".")) return new FieldSuffix(ctx.ID().getText());
-        if (primerToken.equals("[")) return new IndexSuffix((Expression) visit(ctx.argumentos().expresion(0)));
+        if (primerToken.equals("[")) return new IndexSuffix((Expression) visit(ctx.expresion()));
         if (primerToken.equals("(")) {
             List<Expression> args = ctx.argumentos() != null ? convertirArgumentos(ctx.argumentos()) : new ArrayList<>();
             return new CallSuffix(args);
