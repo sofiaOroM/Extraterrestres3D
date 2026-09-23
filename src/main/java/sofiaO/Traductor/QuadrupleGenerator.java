@@ -287,6 +287,11 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
 
     @Override
     public String visit(IncrDecrNode n) {
+        String lugar = (atributosDeClaseActual.contains(n.nombreVariable)
+                && !localesDelMetodoActual.contains(n.nombreVariable))
+                ? "this->" + n.nombreVariable
+                : n.nombreVariable;
+
         String operador = n.operador.equals("++") ? "+" : "-";
         Type tipo = tipoDeLugar(n.nombreVariable);
         String temp = nuevoTemp(tipo);
