@@ -26,6 +26,11 @@ public class TypeMapper {
         nombresUsuario.put(nombre, nombre);
     }
 
+    public static void reiniciar() {
+        tiposUsuario.clear();
+        nombresUsuario.clear();
+    }
+
     public static String nombreReal(String nombre) {
         return nombresUsuario.getOrDefault(nombre, nombre);
     }
