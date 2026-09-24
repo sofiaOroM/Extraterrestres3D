@@ -26,6 +26,8 @@ public class QuadrupleGenerator implements ASTVisitor<String> {
 
     private Set<String> atributosDeClaseActual = Collections.emptySet();
     private Set<String> localesDelMetodoActual = new HashSet<>();
+    private String claseActual = null;
+    private Set<String> metodosDeClaseActual = Collections.emptySet();
 
     private static class EtiquetasCiclo {
         final String continuar;

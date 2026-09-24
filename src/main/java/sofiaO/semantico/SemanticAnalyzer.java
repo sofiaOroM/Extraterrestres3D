@@ -27,6 +27,7 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     private final ProgramContext contexto;
     private ResolvedType tipoRetornoFuncionActual = null;
     private int profundidadCiclo = 0;
+    private String claseActual = null;
 
     private final List<SemanticException> errores = new ArrayList<>();
     private static final Pattern LINEA_EN_MENSAJE = Pattern.compile("\\(línea (\\d+)\\)");
@@ -250,10 +251,12 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     @Override
     public Type visit(FunctionDeclNode n) {
         ResolvedType retornoAnterior = tipoRetornoFuncionActual;
+        String claseAnterior = claseActual;
         tipoRetornoFuncionActual = resolverTipoDeclarado(n.tipoRetorno, n.getLine());
 
         abrirScope();
         if (n.esMetodo && n.claseDuena != null) {
+            claseActual = n.claseDuena;
             scopeActual.declarar("this", Type.CLASE, n.claseDuena, n.getLine(), n.getColumn());
             precargarAtributosDeClase(n.claseDuena);
         }
@@ -262,17 +265,23 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         cerrarScope();
 
         tipoRetornoFuncionActual = retornoAnterior;
+        claseActual = claseAnterior;
         return Type.VOID;
     }
 
     @Override
     public Type visit(ConstructorDeclNode n) {
+        String claseAnterior = claseActual;
+        claseActual = n.claseDuena;
+
         abrirScope();
         scopeActual.declarar("this", Type.CLASE, n.claseDuena, n.getLine(), n.getColumn());
         precargarAtributosDeClase(n.claseDuena);
         for (ParamNode p : n.parametros) p.accept(this);
         for (Statement s : n.cuerpo) s.accept(this);
         cerrarScope();
+
+        claseActual = claseAnterior;
         return Type.VOID;
     }
 
@@ -627,11 +636,21 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
                 && !n.sufijos.isEmpty() && n.sufijos.get(0) instanceof CallSuffix
                 && contexto.funciones.containsKey(idBase.nombre);
 
+        boolean esLlamadaAMetodoImplicito = !esLlamadaAFuncionLibre
+                && n.base instanceof IdentifierNode idBase2
+                && !n.sufijos.isEmpty() && n.sufijos.get(0) instanceof CallSuffix
+                && claseActual != null
+                && contexto.metodosPorClase.containsKey(claseActual)
+                && contexto.metodosPorClase.get(claseActual).containsKey(idBase2.nombre);
+
         Type tipoActual;
         String tipoUsuarioActual;
         if (esLlamadaAFuncionLibre) {
             tipoActual = Type.ERROR;
             tipoUsuarioActual = null;
+        } else if (esLlamadaAMetodoImplicito) {
+            tipoActual = Type.CLASE;
+            tipoUsuarioActual = claseActual;
         } else {
             tipoActual = n.base.accept(this);
             tipoUsuarioActual = tipoUsuarioDe(n.base);
@@ -692,6 +711,16 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
 
                     validarParametros(f.parametros, call.argumentos, nombreFuncion, n.getLine());
                     ResolvedType rtRetorno = resolverTipoDeclarado(f.tipoRetorno, n.getLine());
+                    tipoActual = rtRetorno.tipo();
+                    tipoUsuarioActual = rtRetorno.tipoUsuario();
+
+                } else if (esLlamadaAMetodoImplicito && i == 0) {
+                    String nombreMetodoImplicito = ((IdentifierNode) n.base).nombre;
+                    FunctionDeclNode metodo = contexto.metodosPorClase.get(claseActual).get(nombreMetodoImplicito);
+
+                    validarParametros(metodo.parametros, call.argumentos,
+                            claseActual + "." + nombreMetodoImplicito, n.getLine());
+                    ResolvedType rtRetorno = resolverTipoDeclarado(metodo.tipoRetorno, n.getLine());
                     tipoActual = rtRetorno.tipo();
                     tipoUsuarioActual = rtRetorno.tipoUsuario();
 
