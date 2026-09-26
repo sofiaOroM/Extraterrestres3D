@@ -85,8 +85,9 @@ declaracionVariable
 // series mis_enteros[2] : numerus {1, 1};
 // series nombres_[2] : textum;
 // series resistencia[3] : Persona;
+// series matriz[2][3] : numerus {{1,2,3},{4,5,6}};   (N dimensiones: un '[expresion]' por cada una)
 declaracionArreglo
-    : SERIES ID '[' expresion ']' ':' tipo ('{' listaValores '}')?  ';'
+    : SERIES ID ('[' expresion ']')+ ':' tipo ('{' listaValores '}')?  ';'
     ;
 
 valor

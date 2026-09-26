@@ -38,12 +38,12 @@ parametros
     ;
 
 // Los primitivos se pasan por valor.
-// Los arreglos se pasan por referencia con el prefijo [].
+// Los arreglos se pasan por referencia con el prefijo []. Para más de una dimensión,
 // Las estructuras se pasan por referencia con el prefijo {}.
 parametro
-    : tipo ID                  # parametroSimple
-    | '[' ']' tipo ID          # parametroArreglo
-    | '{' '}' ID ID            # parametroEstructura
+    : tipo ID                              # parametroSimple
+    | '[' ']' ('[' ENTERO ']')* tipo ID    # parametroArreglo
+    | '{' '}' ID ID                        # parametroEstructura
     ;
 
 bloqueFuncion
@@ -152,11 +152,11 @@ condicionalElegir
     ;
 
 casoElegir
-    : CASO (ENTERO | ID) ':' (NL | INDENT)* bloqueFuncion
+    : CASO (ENTERO | ID) ':' NL* bloqueFuncion NL*
     ;
 
 casoDefault
-    : SIEMPRE ':' (NL | INDENT)* bloqueFuncion
+    : SIEMPRE ':' NL* bloqueFuncion NL*
     ;
 
 // ---------------- Ciclos ----------------
