@@ -258,7 +258,7 @@ public class ExpressionGenerator {
 
         ctx.emitVariadic("new", n.nombreClase, temp, tipo, args, tipos);
 
-        String initFunc = n.nombreClase + "_init";
+        String initFunc = DeclarationGenerator.nombreInitPara(n.nombreClase, n.argumentos.size());
         String tempCall = ctx.newTemp(Type.VOID);
         ctx.emitVariadic("call", initFunc, tempCall, Type.VOID, args, tipos);
 
@@ -270,13 +270,33 @@ public class ExpressionGenerator {
             return generarLiteralEstructura(n);
         }
         Type tipo = n.tipoResuelto;
+        List<Expression> valoresPlanos = new ArrayList<>();
+        aplanarValores(n, valoresPlanos);
+
         String temp = ctx.newTemp(tipo);
-        ctx.emit("newarray", String.valueOf(n.valores.size()), null, temp, tipo);
-        for (int i = 0; i < n.valores.size(); i++) {
-            String valor = ctx.generate(n.valores.get(i));
+        ctx.emit("newarray", String.valueOf(valoresPlanos.size()), null, temp, tipo);
+        for (int i = 0; i < valoresPlanos.size(); i++) {
+            String valor = ctx.generate(valoresPlanos.get(i));
             ctx.emit("setindex", temp, String.valueOf(i), valor, tipo);
         }
         return temp;
+    }
+
+    /**
+     * Aplana un literal de arreglo posiblemente anidado a la secuencia de
+     * valores escalares en orden "row-major" -- el mismo orden en el que
+     * flattenIndices() calcula la posición de a[i][j][...]. Un literal de
+     * estructuras ({} de un campo ESTRUCTURA) NO se aplana: ahí cada
+     * elemento sigue siendo un valor propio, no una sub-dimensión.
+     */
+    private void aplanarValores(ArrayLiteralNode n, List<Expression> destino) {
+        for (Expression valor : n.valores) {
+            if (valor instanceof ArrayLiteralNode anidado && anidado.tipoResuelto != Type.ESTRUCTURA) {
+                aplanarValores(anidado, destino);
+            } else {
+                destino.add(valor);
+            }
+        }
     }
 
     private String generarLiteralEstructura(ArrayLiteralNode n) {

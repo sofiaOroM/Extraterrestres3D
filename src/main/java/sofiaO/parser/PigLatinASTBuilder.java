@@ -93,8 +93,9 @@ public class PigLatinASTBuilder extends PigLatinLanguageBaseVisitor<ASTNode> {
     public ASTNode visitDeclaracionArreglo(PigLatinLanguageParser.DeclaracionArregloContext ctx) {
         String tipo = ctx.tipo().getText();
         String nombre = ctx.ID().getText();
+        // Un '[expresion]' por cada dimensión declarada (series matriz[2][3] : ... -> [2, 3])
         List<Integer> dimensiones = new ArrayList<>();
-        dimensiones.add(intentarLeerEntero(ctx.expresion()));
+        for (var dimCtx : ctx.expresion()) dimensiones.add(intentarLeerEntero(dimCtx));
 
         ASTNode init = ctx.listaValores() != null
                 ? new ArrayLiteralNode(convertirListaValores(ctx.listaValores()),

@@ -67,6 +67,7 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     /** Si una declaración falla, se registra igual para no provocar errores en cascada. */
     private void declararTrasError(VarDeclNode v) {
         if (scopeActual.existeEnScopeActual(v.nombre)) return;
+        if (contexto.funciones.containsKey(v.nombre)) return;
         try {
             ResolvedType rt = resolverTipoDeclarado(v.tipo, v.getLine());
             scopeActual.declarar(v.nombre, rt.tipo(), rt.tipoUsuario(), v.getLine(), v.getColumn());
@@ -123,6 +124,24 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         return tipoUsuario != null ? tipoUsuario : tipo.toString();
     }
 
+    /**
+     * Cuenta cuántos valores escalares deja un literal de arreglo una vez
+     * aplanado (mismo criterio que ExpressionGenerator.aplanarValores):
+     * cada {} anidado que no sea una estructura es una sub-dimensión y se
+     * cuenta recursivamente, no como un solo elemento.
+     */
+    private int contarValoresPlanos(ArrayLiteralNode n) {
+        int total = 0;
+        for (Expression valor : n.valores) {
+            if (valor instanceof ArrayLiteralNode anidado && anidado.tipoResuelto != Type.ESTRUCTURA) {
+                total += contarValoresPlanos(anidado);
+            } else {
+                total++;
+            }
+        }
+        return total;
+    }
+
     private void precargarAtributosDeClase(String nombreClase) {
         Map<String, ResolvedType> layout = contexto.layoutsClases.get(nombreClase);
         if (layout == null) return;
@@ -160,7 +179,11 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     public Type visit(ProgramNode n) {
         for (var d : n.declaraciones) {
             if (d instanceof FunctionDeclNode f && !f.esMetodo) {
-                contexto.funciones.putIfAbsent(f.nombre, f);
+                if (contexto.funciones.containsKey(f.nombre)) {
+                    throw new SemanticException("La función '" + f.nombre
+                            + "' ya está definida (línea " + f.getLine() + ")");
+                }
+                contexto.funciones.put(f.nombre, f);
             }
         }
 
@@ -216,6 +239,9 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
 
     @Override
     public Type visit(StructDeclNode n) {
+        if (contexto.funciones.containsKey(n.nombre)) {
+            throw new SemanticException("El nombre '" + n.nombre + "' ya está usado por una función importada (línea " + n.getLine() + ")");
+        }
         contexto.structs.put(n.nombre, n);
 
         Map<String, ResolvedType> layout = new LinkedHashMap<>();
@@ -232,6 +258,9 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
 
     @Override
     public Type visit(ClassDeclNode n) {
+        if (contexto.funciones.containsKey(n.nombre)) {
+            throw new SemanticException("El nombre '" + n.nombre + "' ya está usado por una función importada (línea " + n.getLine() + ")");
+        }
         contexto.classes.put(n.nombre, n);
 
         Map<String, ResolvedType> layout = new LinkedHashMap<>();
@@ -304,6 +333,14 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         ResolvedType rt = resolverTipoDeclarado(n.tipo, n.getLine());
         n.tipoResuelto = rt.tipo();
         n.tipoUsuarioResuelto = rt.tipoUsuario();
+
+        if (scopeActual.existeEnScopeActual(n.nombre)) {
+            throw new SemanticException("Parámetro ya declarado en este ámbito: " + n.nombre  + " (línea " + n.getLine() + ")");
+        }
+        if (contexto.funciones.containsKey(n.nombre)) {
+            throw new SemanticException("El nombre '" + n.nombre + "' ya está usado por una función importada (línea " + n.getLine() + ")");
+        }
+
         scopeActual.declarar(n.nombre, rt.tipo(), rt.tipoUsuario(), n.getLine(), n.getColumn());
         return rt.tipo();
     }
@@ -319,6 +356,11 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         if (scopeActual.existeEnScopeActual(n.nombre)) {
             throw new SemanticException("Variable ya declarada en este ámbito: " + n.nombre
                     + " (línea " + n.getLine() + ")");
+        }
+
+        if (contexto.funciones.containsKey(n.nombre)) {
+            throw new SemanticException("El nombre '" + n.nombre
+                    + "' ya está usado por una función importada (línea " + n.getLine() + ")");
         }
 
         // 3. Evaluar el inicializador si existe
@@ -347,6 +389,22 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
                 throw new SemanticException("No se puede asignar " + etiquetaTipo(tipoInit, tipoUsuarioInit)
                         + " a " + rt.etiqueta() + " en la variable '" + n.nombre
                         + "' (línea " + n.getLine() + ")");
+            }
+
+            // Para arreglos de N dimensiones (series matriz[2][3] : ... {{...},{...}}),
+            // el literal se aplana a un solo bloque contiguo (ver ExpressionGenerator),
+            // así que su cantidad de valores debe coincidir con el total de posiciones
+            // declaradas (2*3 = 6). Si no, el arreglo queda con memoria mal repartida.
+            if (!n.dimensionesArreglo.isEmpty() && initNode instanceof ArrayLiteralNode literalArreglo
+                    && rt.tipo() != Type.ESTRUCTURA) {
+                int total = 1;
+                for (int d : n.dimensionesArreglo) total *= d;
+                int planos = contarValoresPlanos(literalArreglo);
+                if (planos != total) {
+                    throw new SemanticException("El arreglo '" + n.nombre + "' declara " + total
+                            + " posición(es) (" + n.dimensionesArreglo + ") pero el literal trae "
+                            + planos + " valor(es) (línea " + n.getLine() + ")");
+                }
             }
         }
 
@@ -412,7 +470,9 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
     @Override
     public Type visit(SwitchNode n) {
         n.selector.accept(this);
+        profundidadCiclo++;
         for (CaseNode c : n.casos) c.accept(this);
+        profundidadCiclo--;
         return Type.VOID;
     }
 

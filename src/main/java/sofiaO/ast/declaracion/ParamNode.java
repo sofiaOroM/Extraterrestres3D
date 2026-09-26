@@ -3,6 +3,9 @@ package sofiaO.ast.declaracion;
 import sofiaO.ast.ASTVisitor;
 import sofiaO.ast.BaseNode;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Un parámetro de función/método/constructor */
 public class ParamNode extends BaseNode {
 
@@ -11,6 +14,9 @@ public class ParamNode extends BaseNode {
     public String tipo;
     public String nombre;
     public ModoPaso modo;
+
+    public List<Integer> dimensionesArreglo = new ArrayList<>();
+
 
     public ParamNode(String tipo, String nombre, ModoPaso modo, int line, int column) {
         super(line, column);

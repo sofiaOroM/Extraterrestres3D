@@ -115,8 +115,15 @@ public class YLanguageASTBuilder extends YLanguageBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitParametroArreglo(YLanguageParser.ParametroArregloContext ctx) {
-        return new ParamNode(ctx.tipo().getText(), ctx.ID().getText(), ParamNode.ModoPaso.REFERENCIA_ARREGLO,
+        ParamNode p = new ParamNode(ctx.tipo().getText(), ctx.ID().getText(), ParamNode.ModoPaso.REFERENCIA_ARREGLO,
                 ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+        if (!ctx.ENTERO().isEmpty()) {
+            p.dimensionesArreglo.add(0);
+            for (var tamano : ctx.ENTERO()) {
+                p.dimensionesArreglo.add(Integer.parseInt(tamano.getText()));
+            }
+        }
+        return p;
     }
 
     @Override
