@@ -43,7 +43,9 @@ public class DeclarationGenerator {
             }
         }
         ctx.placeTypes().put(n.nombre, tipo);
-        // arg2 = tipo declarado ("[]" al final si es un arreglo pasado por referencia)
+        if (!n.dimensionesArreglo.isEmpty()) {
+            ctx.arrayDimensions().put(n.nombre, n.dimensionesArreglo);
+        }
         String tipoDeclarado = n.tipo + (n.modo == ParamNode.ModoPaso.REFERENCIA_ARREGLO ? "[]" : "");
         ctx.emit("param", n.nombre, tipoDeclarado, null, tipo);
         return null;
@@ -85,7 +87,11 @@ public class DeclarationGenerator {
     }
 
     public String visit(ConstructorDeclNode n) {
-        String nombreCompleto = n.claseDuena + "_init";
+        // Zetariano sí permite sobrecargar constructores (Registro(), Registro(inicial)...),
+        // pero C no permite dos funciones con el mismo nombre. Sin este sufijo, dos
+        // constructores de la misma clase con distinta cantidad de parámetros generaban
+        // ambos "Clase_init" y el C resultante no compilaba ("conflicting types").
+        String nombreCompleto = nombreInitPara(n.claseDuena, n.parametros.size());
         ctx.emit("func", "void", null, nombreCompleto, Type.VOID);
         ctx.emit("param", "this", null, null, Type.CLASE);
         ctx.placeTypes().put("this", Type.CLASE);
@@ -117,17 +123,18 @@ public class DeclarationGenerator {
             for (int d : n.dimensionesArreglo) total *= d;
             ctx.emit("declare", String.valueOf(total), null, n.nombre, tipo);
             if (n.inicializador == null) {
-                // No trae "{...}" de inicialización: igual hay que reservarle memoria
-                // ahora mismo, si no queda apuntando a basura y "v[0] = ..." truena en
-                // tiempo de ejecución (o ni compila, si antes ni el malloc se hacía).
-                // Si es arreglo de una estructura/clase de usuario (ej. "series
-                // personas[3] : Persona;"), el temporal necesita saber que es de tipo
-                // "Persona" -- si no, más adelante se declara y reserva memoria como si
-                // fuera un arreglo de int.
                 String tipoUsr = ctx.placeUserTypes().get(n.nombre);
                 String temp = ctx.newTempOf(tipo, tipoUsr);
                 ctx.emit("newarray", String.valueOf(total), null, temp, tipo);
                 ctx.emit("=", temp, null, n.nombre, tipo);
+
+                if (tipo == Type.ESTRUCTURA) {
+                    for (int idx = 0; idx < total; idx++) {
+                        String elemento = ctx.newTempOf(Type.ESTRUCTURA, tipoUsr);
+                        ctx.emit("getindex", n.nombre, String.valueOf(idx), elemento, Type.ESTRUCTURA);
+                        inicializarCamposEstructura(elemento, tipoUsr);
+                    }
+                }
             }
         } else {
             ctx.emit("declare", null, null, n.nombre, tipo);
@@ -137,30 +144,46 @@ public class DeclarationGenerator {
             String valor = ctx.generate((ASTNode) n.inicializador);
             ctx.emit("=", valor, null, n.nombre, tipo);
         } else if (tipo == Type.ESTRUCTURA && n.dimensionesArreglo.isEmpty()) {
-            // Instancia por defecto de UNA sola estructura ("esto d : Direccion;"). No
-            // aplica a un arreglo de estructuras: ahí cada elemento ya vive dentro del
-            // bloque reservado arriba por newarray, y "crear una Persona más" encima
-            // solo pisaría el puntero al arreglo completo con un malloc de un solo
-            // elemento (justo el bug que rompía "series personas[3] : Persona;").
-            String tipoUsr = ctx.placeUserTypes().get(n.nombre);
+             String tipoUsr = ctx.placeUserTypes().get(n.nombre);
             ctx.emit("new", tipoUsr, null, n.nombre, Type.ESTRUCTURA);
             inicializarCamposEstructura(n.nombre, tipoUsr);
         }
         return null;
     }
 
+    static String nombreInitPara(String clase, int cantidadParametros) {
+        return clase + "_init" + (cantidadParametros == 0 ? "" : "_" + cantidadParametros);
+    }
+
     private void inicializarCamposEstructura(String lugar, String tipoUsr) {
         if (tipoUsr == null || ctx.context() == null) return;
         var layout = ctx.context().layoutsEstructuras.get(tipoUsr);
         if (layout == null) return;
+        var dimensionesDelTipo = ctx.context().dimensionesCamposEstructuras.get(tipoUsr);
 
         for (var campo : layout.entrySet()) {
             if (campo.getValue().tipo() != Type.ESTRUCTURA) continue;
+            String nombreCampo = campo.getKey();
             String tipoCampo = campo.getValue().tipoUsuario();
-            String temp = ctx.newTempOf(Type.ESTRUCTURA, tipoCampo);
-            ctx.emit("new", tipoCampo, null, temp, Type.ESTRUCTURA);
-            ctx.emit("setfield", lugar, campo.getKey(), temp, Type.ESTRUCTURA);
-            inicializarCamposEstructura(temp, tipoCampo);
+            List<Integer> dimensionesCampo = dimensionesDelTipo == null ? null : dimensionesDelTipo.get(nombreCampo);
+
+            if (dimensionesCampo != null && !dimensionesCampo.isEmpty() && dimensionesCampo.get(0) >= 0) {
+                int total = 1;
+                for (int d : dimensionesCampo) total *= d;
+                String arreglo = ctx.newTempOf(campo.getValue().tipo(), tipoCampo);
+                ctx.emit("newarray", String.valueOf(total), null, arreglo, Type.ESTRUCTURA);
+                ctx.emit("setfield", lugar, nombreCampo, arreglo, Type.ESTRUCTURA);
+                for (int idx = 0; idx < total; idx++) {
+                    String elemento = ctx.newTempOf(Type.ESTRUCTURA, tipoCampo);
+                    ctx.emit("getindex", arreglo, String.valueOf(idx), elemento, Type.ESTRUCTURA);
+                    inicializarCamposEstructura(elemento, tipoCampo);
+                }
+            } else if (dimensionesCampo == null) {
+                String temp = ctx.newTempOf(Type.ESTRUCTURA, tipoCampo);
+                ctx.emit("new", tipoCampo, null, temp, Type.ESTRUCTURA);
+                ctx.emit("setfield", lugar, nombreCampo, temp, Type.ESTRUCTURA);
+                inicializarCamposEstructura(temp, tipoCampo);
+            }
         }
     }
 }
