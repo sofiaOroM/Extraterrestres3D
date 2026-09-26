@@ -152,7 +152,7 @@ public class CEmitter {
 
     /**
      * La línea completa de un campo dentro de un struct/clase ("char nombre[256];",
-     * "int edad;", "Direccion* domicilio;", "int notas[3];"...). A diferencia de tipoC()
+     * "int edad;", "Direccion* domicilio;", "int* notas;"...). A diferencia de tipoC()
      * (para variables sueltas), aquí SIEMPRE se conoce el tipoUsuario del campo (viene del
      * layout calculado por el análisis semántico), así que un campo de tipo
      * ESTRUCTURA/CLASE se declara con su nombre real, nunca "void*": "void* domicilio;"
@@ -163,10 +163,7 @@ public class CEmitter {
         Map<String, List<Integer>> dimensionesDelStruct = dimensionesCamposEstructuras.get(nombreStruct);
         List<Integer> dimensiones = dimensionesDelStruct == null ? null : dimensionesDelStruct.get(nombreCampo);
         if (dimensiones != null && !dimensiones.isEmpty()) {
-            int total = 1;
-            for (int d : dimensiones) total *= d;
-            String tC = campo.tipo() == Type.CADENA ? "char" : campo.tipo().aC();
-            return tC + " " + nombreCampo + "[" + total + "];\n";
+            return tipoCampoElementoC(campo) + "* " + nombreCampo + ";\n";
         }
         if (campo.tipo() == Type.CADENA) {
             return "char " + nombreCampo + "[256];\n";
@@ -176,6 +173,15 @@ public class CEmitter {
             return tipoConcreto + " " + nombreCampo + ";\n";
         }
         return campo.tipo().aC() + " " + nombreCampo + ";\n";
+    }
+
+    /** Tipo C de UN elemento del arreglo (sin el "*"): "Materia", "int", "char"... */
+    private String tipoCampoElementoC(ResolvedType campo) {
+        if (campo.tipo() == Type.ESTRUCTURA || campo.tipo() == Type.CLASE) {
+            return campo.tipoUsuario() != null ? campo.tipoUsuario() : "void";
+        }
+        if (campo.tipo() == Type.CADENA) return "char*"; // arreglo de cadenas -> char**
+        return campo.tipo().aC();
     }
 
     /** Tipo C a partir del nombre de tipo declarado en el lenguaje (entero, String, Nodo...). */
@@ -189,7 +195,7 @@ public class CEmitter {
 
     /** Tipo de retorno en C de la función que abre la cuarteta 'func'. */
     private String tipoRetornoC(Quadruple funcQ) {
-        if (funcQ.result != null && funcQ.result.endsWith("_init")) return "void";
+        if (funcQ.result != null && funcQ.result.contains("_init")) return "void";
         return tipoC(funcQ.arg1);
     }
 
@@ -324,7 +330,7 @@ public class CEmitter {
                     if (tipoUsrArreglo != null && layoutsEstructuras.containsKey(tipoUsrArreglo)) {
                         return "    " + tipoUsrArreglo + "* " + q.result + " = NULL;\n";
                     }
-                    return "    int* " + q.result + ";\n";
+                    return "    " + tipoPunteroArreglo(q.tipoResultado) + " " + q.result + ";\n";
                 }
 
                 if (q.tipoResultado == Type.ESTRUCTURA || q.tipoResultado == Type.CLASE || tipoNombre != null) {
@@ -381,7 +387,10 @@ public class CEmitter {
                     return "    " + q.result + " = (" + tipoUsrArreglo + "*) malloc(" + q.arg1
                             + " * sizeof(" + tipoUsrArreglo + "));\n";
                 }
-                return "    " + q.result + " = (int*) malloc(" + q.arg1 + " * sizeof(int));\n";
+                String tipoPuntero = tipoPunteroArreglo(q.tipoResultado);
+                String tipoElemento = tipoElementoArreglo(q.tipoResultado);
+                return "    " + q.result + " = (" + tipoPuntero + ") malloc(" + q.arg1
+                        + " * sizeof(" + tipoElemento + "));\n";
             }
             case "new":
                 return "    " + q.result + " = (" + q.arg1 + "*) malloc(sizeof(" + q.arg1 + "));\n";
@@ -398,6 +407,28 @@ public class CEmitter {
 
     private boolean esArreglo(String identificador) {
         return variablesArreglo.contains(identificador);
+    }
+
+    private String tipoPunteroArreglo(Type tipoElemento) {
+        if (tipoElemento == null) return "int*";
+        return switch (tipoElemento) {
+            case CADENA -> "char**";
+            case FLOTANTE -> "double*";
+            case CARACTER -> "char*";
+            case ENTERO, BOOL -> "int*";
+            default -> "int*";
+        };
+    }
+
+    private String tipoElementoArreglo(Type tipoElemento) {
+        if (tipoElemento == null) return "int";
+        return switch (tipoElemento) {
+            case CADENA -> "char*";
+            case FLOTANTE -> "double";
+            case CARACTER -> "char";
+            case ENTERO, BOOL -> "int";
+            default -> "int";
+        };
     }
 
     private String resolverAtributo(String var, String funcionActual) {
