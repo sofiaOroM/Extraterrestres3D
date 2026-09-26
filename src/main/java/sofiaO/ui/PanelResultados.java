@@ -35,7 +35,13 @@ final class PanelResultados extends TabPane {
         void guardar(String nombreSugerido, String descripcion, String extension, String contenido);
     }
 
+    /** Lo que el panel le pide a la ventana principal para compilar y ejecutar el código C generado. */
+    interface Ejecutor {
+        void ejecutar(String codigoC, String nombreBase);
+    }
+
     private final Guardador guardador;
+    private final Ejecutor ejecutor;
     private Consumer<ErrorCompilador> alElegirError = e -> {};
 
     private final Tab pestanaErrores = new Tab("Errores");
@@ -59,8 +65,9 @@ final class PanelResultados extends TabPane {
     private String codigoC = "";
     private String nombreBase = "programa";
 
-    PanelResultados(IntegerProperty tamanoFuente, Guardador guardador) {
+    PanelResultados(IntegerProperty tamanoFuente, Guardador guardador, Ejecutor ejecutor) {
         this.guardador = guardador;
+        this.ejecutor = ejecutor;
         setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
         getStyleClass().add("panel-resultados");
 
@@ -305,6 +312,11 @@ final class PanelResultados extends TabPane {
     }
 
     private Region crearContenidoC() {
+        Button ejecutar = new Button("▶ Ejecutar");
+        ejecutar.getStyleClass().add("boton-primario");
+        ejecutar.setOnAction(e -> ejecutor.ejecutar(codigoC, nombreBase));
+        ejecutar.disableProperty().bind(hayCodigo.not());
+
         Button copiar = new Button("Copiar");
         copiar.setOnAction(e -> copiar(codigoC));
         copiar.disableProperty().bind(hayCodigo.not());
@@ -314,7 +326,7 @@ final class PanelResultados extends TabPane {
 
         Region espacio = new Region();
         HBox.setHgrow(espacio, Priority.ALWAYS);
-        HBox barra = new HBox(6, espacio, copiar, guardar);
+        HBox barra = new HBox(6, ejecutar, espacio, copiar, guardar);
         barra.setAlignment(Pos.CENTER_RIGHT);
         barra.getStyleClass().add("barra-panel");
 

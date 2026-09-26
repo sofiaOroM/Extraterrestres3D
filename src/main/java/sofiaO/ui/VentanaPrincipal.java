@@ -42,8 +42,15 @@ final class VentanaPrincipal implements PanelArbol.Acciones {
         return hilo;
     });
 
+    private static final ExecutorService EJECUTOR_PROGRAMAS = Executors.newCachedThreadPool(tarea -> {
+        Thread hilo = new Thread(tarea, "ejecucion-programa");
+        hilo.setDaemon(true);
+        return hilo;
+    });
+
     static void detenerTrabajosEnSegundoPlano() {
         EJECUTOR.shutdownNow();
+        EJECUTOR_PROGRAMAS.shutdownNow();
     }
 
     private static final int FUENTE_INICIAL = 14;
@@ -57,7 +64,7 @@ final class VentanaPrincipal implements PanelArbol.Acciones {
     private final TabPane pestanas = new TabPane();
     private final PanelArbol arbol = new PanelArbol(this);
     private final VistaPrevia vistaPrevia = new VistaPrevia(tamanoFuente);
-    private final PanelResultados resultados = new PanelResultados(tamanoFuente, this::guardarResultado);
+    private final PanelResultados resultados = new PanelResultados(tamanoFuente, this::guardarResultado, this::ejecutarCodigoC);
 
     private final ServicioCompilacion servicio = new ServicioCompilacion();
     private final BooleanProperty compilando = new SimpleBooleanProperty(false);
@@ -693,6 +700,17 @@ final class VentanaPrincipal implements PanelArbol.Acciones {
             estado((r.errores.size() == 1 ? "Se encontró 1 error" : "Se encontraron " + r.errores.size() + " errores")
                     + " al " + (esPrograma ? "compilar" : "validar") + " «" + nombre + "».");
         }
+    }
+
+    /** Se conecta al botón "Ejecutar" de la pestaña Código C: compila con gcc y corre el programa en una consola. */
+    private void ejecutarCodigoC(String codigoC, String nombreBase) {
+        if (codigoC == null || codigoC.isBlank()) return;
+        String css = escenario.getScene() != null && !escenario.getScene().getStylesheets().isEmpty()
+                ? escenario.getScene().getStylesheets().get(0)
+                : null;
+        ConsolaEjecucion consola = new ConsolaEjecucion(escenario, css, nombreBase);
+        consola.show();
+        EJECUTOR_PROGRAMAS.execute(() -> consola.compilarYEjecutar(codigoC, nombreBase));
     }
 
     private void irAlError(ErrorCompilador error) {
