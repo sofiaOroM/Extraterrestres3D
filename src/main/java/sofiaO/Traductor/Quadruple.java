@@ -11,6 +11,10 @@ import java.util.List;
  *
  * Formato clásico: (operador, argumento1, argumento2, resultado)
  *
+ * Operaciones de cadenas (concatenación con '+'):
+ *   t1 = int_to_str 100          (también double_to_str, char_to_str, bool_to_str)
+ *   t2 = concat "Total: ", t1    -> reserva memoria en el HEAP para la cadena nueva
+ *
  * Se agrega 'extraArgs' porque hay instrucciones del propio enunciado que
  * son VARIÁDICAS y no caben en 4 campos fijos:
  *   - "t2 = call verificar_semantica, t0, t1"   (N argumentos)
@@ -66,6 +70,7 @@ public class Quadruple {
                     + (extraArgs.isEmpty() ? "" : ", " + String.join(", ", extraArgs));
             case "print":    return "print " + String.join(", ", extraArgs);
             case "read":     return result + " = read";
+            case "concat":   return result + " = concat " + arg1 + ", " + arg2;
             case "return":   return "return" + (arg1 != null ? " " + arg1 : "");
             case "halt":     return "halt";
             case "func":     return "func " + result + ":";
@@ -74,8 +79,8 @@ public class Quadruple {
             case "new":      return result + " = new " + arg1
                     + (extraArgs.isEmpty() ? "" : ", " + String.join(", ", extraArgs));
             case "newarray": return result + " = newarray " + arg1;
-            case "getfield": return result + " = " + arg1 + "." + arg2;
-            case "setfield": return arg1 + "." + arg2 + " = " + result;
+            case "getfield": return result + " = " + arg1 + "->" + arg2;
+            case "setfield": return arg1 + "->" + arg2 + " = " + result;
             case "getindex": return result + " = " + arg1 + "[" + arg2 + "]";
             case "setindex": return arg1 + "[" + arg2 + "] = " + result;
             case "declare":
