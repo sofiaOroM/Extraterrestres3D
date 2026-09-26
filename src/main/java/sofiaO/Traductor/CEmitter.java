@@ -20,6 +20,7 @@ public class CEmitter {
     private Map<String, Type> tipos = new LinkedHashMap<>();
     private final Map<String, Integer> tamanosArreglos = new LinkedHashMap<>();
     private Map<String, Map<String, ResolvedType>> layoutsEstructuras = new LinkedHashMap<>();
+    private Map<String, Map<String, List<Integer>>> dimensionesCamposEstructuras = new LinkedHashMap<>();
     private final Set<String> variablesArreglo = new HashSet<>();
 
     public Map<String, String> tiposUsuarioDeLugares = new LinkedHashMap<>();
@@ -28,13 +29,16 @@ public class CEmitter {
         this.layoutsEstructuras = layouts;
     }
 
+    public void setDimensionesCamposEstructuras(Map<String, Map<String, List<Integer>>> dimensiones) {
+        this.dimensionesCamposEstructuras = dimensiones == null ? new LinkedHashMap<>() : dimensiones;
+    }
+
     public String emitir(List<Quadruple> cuartetas, Map<String, Type> tiposDeLugares) {
         salida.setLength(0);
         tamanosArreglos.clear();
         variablesArreglo.clear();
         this.tipos = tiposDeLugares == null ? new LinkedHashMap<>() : tiposDeLugares;
 
-        // Identificar qué temporales/variables fueron creados con newarray
         for (Quadruple q : cuartetas) {
             if ("newarray".equals(q.op) && q.result != null) {
                 variablesArreglo.add(q.result);
@@ -42,6 +46,13 @@ public class CEmitter {
                 variablesArreglo.add(q.result);
             } else if ("=".equals(q.op) && q.result != null && variablesArreglo.contains(q.arg1)) {
                 variablesArreglo.add(q.result);
+            } else if ("getfield".equals(q.op) && q.result != null) {
+                String tipoStructBase = tiposUsuarioDeLugares.get(q.arg1);
+                Map<String, List<Integer>> camposArreglo = tipoStructBase == null
+                        ? null : dimensionesCamposEstructuras.get(tipoStructBase);
+                if (camposArreglo != null && camposArreglo.containsKey(q.arg2)) {
+                    variablesArreglo.add(q.result);
+                }
             }
         }
 
@@ -133,7 +144,7 @@ public class CEmitter {
 
             salida.append("struct ").append(nombreStruct).append(" {\n");
             for (Map.Entry<String, ResolvedType> campo : campos.entrySet()) {
-                salida.append("    ").append(lineaCampoC(campo.getKey(), campo.getValue()));
+                salida.append("    ").append(lineaCampoC(nombreStruct, campo.getKey(), campo.getValue()));
             }
             salida.append("};\n\n");
         }
@@ -141,14 +152,22 @@ public class CEmitter {
 
     /**
      * La línea completa de un campo dentro de un struct/clase ("char nombre[256];",
-     * "int edad;", "Direccion* domicilio;"...). A diferencia de tipoC() (para
-     * variables sueltas), aquí SIEMPRE se conoce el tipoUsuario del campo (viene del
+     * "int edad;", "Direccion* domicilio;", "int notas[3];"...). A diferencia de tipoC()
+     * (para variables sueltas), aquí SIEMPRE se conoce el tipoUsuario del campo (viene del
      * layout calculado por el análisis semántico), así que un campo de tipo
      * ESTRUCTURA/CLASE se declara con su nombre real, nunca "void*": "void* domicilio;"
      * compila igual por la conversión implícita de void* en C, pero pierde el tipo y
      * no avisa si por error se mezclan dos structs distintos.
      */
-    private String lineaCampoC(String nombreCampo, ResolvedType campo) {
+    private String lineaCampoC(String nombreStruct, String nombreCampo, ResolvedType campo) {
+        Map<String, List<Integer>> dimensionesDelStruct = dimensionesCamposEstructuras.get(nombreStruct);
+        List<Integer> dimensiones = dimensionesDelStruct == null ? null : dimensionesDelStruct.get(nombreCampo);
+        if (dimensiones != null && !dimensiones.isEmpty()) {
+            int total = 1;
+            for (int d : dimensiones) total *= d;
+            String tC = campo.tipo() == Type.CADENA ? "char" : campo.tipo().aC();
+            return tC + " " + nombreCampo + "[" + total + "];\n";
+        }
         if (campo.tipo() == Type.CADENA) {
             return "char " + nombreCampo + "[256];\n";
         }
@@ -301,6 +320,10 @@ public class CEmitter {
                 }
 
                 if (esArreglo(q.result)) {
+                    String tipoUsrArreglo = tiposUsuarioDeLugares.get(q.result);
+                    if (tipoUsrArreglo != null && layoutsEstructuras.containsKey(tipoUsrArreglo)) {
+                        return "    " + tipoUsrArreglo + "* " + q.result + " = NULL;\n";
+                    }
                     return "    int* " + q.result + ";\n";
                 }
 
@@ -324,6 +347,8 @@ public class CEmitter {
 
             case "label":   return q.result + ":;\n";
             case "goto":    return "    goto " + q.result + ";\n";
+            case "blockstart": return "    {\n";
+            case "blockend":   return "    }\n";
             case "if_false":return "    if (!(" + q.arg1 + ")) goto " + q.result + ";\n";
             case "if_true": return "    if (" + q.arg1 + ") goto " + q.result + ";\n";
             case "=":       return traducirAsignacion(q, funcionActual);
@@ -341,11 +366,23 @@ public class CEmitter {
             case "halt":    return "";
             case "getfield":
                 return "    " + q.result + " = " + q.arg1 + "->" + q.arg2 + ";\n";
-            case "getindex":return "    " + q.result + " = " + q.arg1 + "[" + q.arg2 + "];\n";
+            case "getindex": {
+                String tipoUsrElemento = tiposUsuarioDeLugares.get(q.result);
+                if (tipoUsrElemento != null && layoutsEstructuras.containsKey(tipoUsrElemento)) {
+                    return "    " + q.result + " = &" + q.arg1 + "[" + q.arg2 + "];\n";
+                }
+                return "    " + q.result + " = " + q.arg1 + "[" + q.arg2 + "];\n";
+            }
             case "setindex":return traducirSetIndex(q);
 
-            case "newarray":
+            case "newarray": {
+                String tipoUsrArreglo = tiposUsuarioDeLugares.get(q.result);
+                if (tipoUsrArreglo != null && layoutsEstructuras.containsKey(tipoUsrArreglo)) {
+                    return "    " + q.result + " = (" + tipoUsrArreglo + "*) malloc(" + q.arg1
+                            + " * sizeof(" + tipoUsrArreglo + "));\n";
+                }
                 return "    " + q.result + " = (int*) malloc(" + q.arg1 + " * sizeof(int));\n";
+            }
             case "new":
                 return "    " + q.result + " = (" + q.arg1 + "*) malloc(sizeof(" + q.arg1 + "));\n";
 
