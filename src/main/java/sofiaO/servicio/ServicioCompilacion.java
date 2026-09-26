@@ -172,6 +172,7 @@ public class ServicioCompilacion {
                                List<ProgramNode> programas, Path archivoParaErrores) {
         try {
             QuadrupleGenerator generador = new QuadrupleGenerator();
+            generador.contexto = compilador.contexto;
             for (ProgramNode p : programas) generador.visit(p);
 
             StringBuilder texto = new StringBuilder();
@@ -188,6 +189,7 @@ public class ServicioCompilacion {
             CEmitter emisor = new CEmitter();
             emisor.tiposUsuarioDeLugares = generador.tiposUsuarioDeLugares;
             emisor.setLayoutsEstructuras(compilador.contexto.obtenerLayoutsParaCEmitter());
+            emisor.setDimensionesCamposEstructuras(compilador.contexto.obtenerDimensionesCamposParaCEmitter());
             r.codigoC = emisor.emitir(generador.cuartetas, generador.tiposDeLugares);
 
             r.resumen.add("Estructuras: " + ordenados(compilador.contexto.structs.keySet()));
