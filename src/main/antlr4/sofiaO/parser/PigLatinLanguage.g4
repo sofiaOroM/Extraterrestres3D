@@ -196,6 +196,7 @@ forUpdate
 
 expresion
     : '(' expresion ')'                                  # exprParentesis
+    | '{' listaValores '}'                                # exprLiteralEstructura
     | NOVUS ID '(' argumentos? ')'                        # exprNuevoObjeto
     | acceso                                              # exprAcceso
     | literal                                             # exprLiteral

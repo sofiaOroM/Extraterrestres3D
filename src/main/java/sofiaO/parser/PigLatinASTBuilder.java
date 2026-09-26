@@ -111,6 +111,16 @@ public class PigLatinASTBuilder extends PigLatinLanguageBaseVisitor<ASTNode> {
     }
 
     @Override
+    public ASTNode visitExprLiteralEstructura(PigLatinLanguageParser.ExprLiteralEstructuraContext ctx) {
+        // '{' listaValores '}' como expresión: se arma igual que en visitValor,
+        // pero aquí puede aparecer anidado dentro de otra lista de valores
+        // (Persona {"Valeria", 25, {"Avenida Central", 500}}), porque listaValores
+        // ahora acepta expresion, y esta regla hizo que '{...}' SEA una expresion.
+        return new ArrayLiteralNode(convertirListaValores(ctx.listaValores()),
+                ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+    }
+
+    @Override
     public ASTNode visitValor(PigLatinLanguageParser.ValorContext ctx) {
         if (ctx.expresion() != null) return visit(ctx.expresion());
         return new ArrayLiteralNode(convertirListaValores(ctx.listaValores()),
