@@ -201,10 +201,10 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         String[] partes = n.ruta.split("\\.");
         if (partes.length < 2) return Type.VOID;
 
+        if (n.tipo != ImportNode.TipoImport.CLASE_Z) return Type.VOID;
+
         String posibleNombreTipo = partes[partes.length - 2];
-        boolean existe = (n.tipo == ImportNode.TipoImport.CLASE_Z)
-                ? contexto.classes.containsKey(posibleNombreTipo)
-                : (contexto.structs.containsKey(posibleNombreTipo) || contexto.funciones.containsKey(posibleNombreTipo));
+        boolean existe = contexto.classes.containsKey(posibleNombreTipo);
 
         if (!existe) {
             throw new SemanticException("No se encontró nada registrado para el import '" + n.ruta
@@ -219,11 +219,14 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         contexto.structs.put(n.nombre, n);
 
         Map<String, ResolvedType> layout = new LinkedHashMap<>();
+        Map<String, List<Integer>> dimensiones = new LinkedHashMap<>();
         for (FieldNode campo : n.campos) {
             campo.accept(this);
             layout.put(campo.nombre, new ResolvedType(campo.tipoResuelto, campo.tipoUsuarioResuelto));
+            if (!campo.dimensionesArreglo.isEmpty()) dimensiones.put(campo.nombre, campo.dimensionesArreglo);
         }
         contexto.layoutsEstructuras.put(n.nombre, layout);
+        if (!dimensiones.isEmpty()) contexto.dimensionesCamposEstructuras.put(n.nombre, dimensiones);
         return Type.VOID;
     }
 
@@ -232,11 +235,14 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         contexto.classes.put(n.nombre, n);
 
         Map<String, ResolvedType> layout = new LinkedHashMap<>();
+        Map<String, List<Integer>> dimensiones = new LinkedHashMap<>();
         for (FieldNode atributo : n.atributos) {
             atributo.accept(this);
             layout.put(atributo.nombre, new ResolvedType(atributo.tipoResuelto, atributo.tipoUsuarioResuelto));
+            if (!atributo.dimensionesArreglo.isEmpty()) dimensiones.put(atributo.nombre, atributo.dimensionesArreglo);
         }
         contexto.layoutsClases.put(n.nombre, layout);
+        if (!dimensiones.isEmpty()) contexto.dimensionesCamposClases.put(n.nombre, dimensiones);
 
         Map<String, FunctionDeclNode> metodos = new LinkedHashMap<>();
         for (FunctionDeclNode m : n.metodos) metodos.put(m.nombre, m);
@@ -357,6 +363,18 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         String tipoUsuarioDestino = tipoUsuarioDe(n.destino);
         Type tipoValor = n.valor.accept(this);
         String tipoUsuarioValor = tipoUsuarioDe(n.valor);
+
+        if (!n.operador.equals("=")) {
+            Type tipoOperacion = n.operador.startsWith("+")
+                    ? TypeCoercionTable.resultadoSuma(tipoDestino, tipoValor)
+                    : TypeCoercionTable.resultadoAritmetico(tipoDestino, tipoValor);
+            if (tipoOperacion == Type.ERROR) {
+                throw new SemanticException("Operación inválida: " + tipoDestino + " " + n.operador
+                        + " " + tipoValor + " (línea " + n.getLine() + ")");
+            }
+            tipoValor = tipoOperacion;
+            tipoUsuarioValor = null;
+        }
 
         if (!TypeCoercionTable.compatibles(tipoDestino, tipoUsuarioDestino, tipoValor, tipoUsuarioValor)) {
             throw new SemanticException("Asignación incompatible: " + etiquetaTipo(tipoValor, tipoUsuarioValor)
@@ -556,8 +574,16 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
                 resultado = Type.BOOL;
                 break;
 
-            default: // + - * / %
-                resultado = TypeCoercionTable.resultado(izq, der);
+            case "+": // suma numérica o concatenación, según los tipos
+                resultado = TypeCoercionTable.resultadoSuma(izq, der);
+                if (resultado == Type.ERROR) {
+                    throw new SemanticException("Operación inválida: " + izq + " + " + der
+                            + " (línea " + n.getLine() + ")");
+                }
+                break;
+
+            default: // - * / %
+                resultado = TypeCoercionTable.resultadoAritmetico(izq, der);
                 if (resultado == Type.ERROR) {
                     throw new SemanticException("Operación inválida: " + izq + " " + n.operador + " " + der
                             + " (línea " + n.getLine() + ")");
@@ -780,6 +806,10 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
 
     @Override
     public Type visit(ArrayLiteralNode n) {
+        if (n.tipoResuelto == Type.ESTRUCTURA && n.tipoUsuarioResuelto != null) {
+            return verificarLiteralEstructura(n);
+        }
+
         Type tipoComun = null;
         for (var val : n.valores) {
             Type t = val.accept(this);
@@ -792,5 +822,54 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
         Type resultado = tipoComun == null ? Type.ERROR : tipoComun;
         n.tipoResuelto = resultado;
         return resultado;
+    }
+
+    /**
+     * Valida "Direccion {"Calle Real", 42}" contra el layout real de la estructura:
+     * misma cantidad de valores que de campos, y cada valor compatible con el tipo
+     * de su campo (en orden de declaración). Si un campo es a su vez una estructura
+     * y el valor es otro '{...}', se etiqueta y valida recursivamente, lo que permite
+     * anidar: Persona {"Valeria", 25, {"Avenida Central", 500}}.
+     */
+    private Type verificarLiteralEstructura(ArrayLiteralNode n) {
+        String nombreEstructura = n.tipoUsuarioResuelto;
+        Map<String, ResolvedType> layout = contexto.layoutsEstructuras.get(nombreEstructura);
+        if (layout == null) {
+            throw new SemanticException("Estructura no encontrada: '" + nombreEstructura
+                    + "' (línea " + n.getLine() + ")");
+        }
+
+        List<Map.Entry<String, ResolvedType>> campos = new ArrayList<>(layout.entrySet());
+        if (campos.size() != n.valores.size()) {
+            throw new SemanticException("La estructura '" + nombreEstructura + "' tiene " + campos.size()
+                    + " campo(s) pero el literal trae " + n.valores.size() + " valor(es) (línea " + n.getLine() + ")");
+        }
+
+        for (int i = 0; i < campos.size(); i++) {
+            String nombreCampo = campos.get(i).getKey();
+            ResolvedType tipoCampo = campos.get(i).getValue();
+            Expression valor = n.valores.get(i);
+
+            if (tipoCampo.tipo() == Type.ESTRUCTURA && valor instanceof ArrayLiteralNode anidado) {
+                anidado.tipoResuelto = Type.ESTRUCTURA;
+                anidado.tipoUsuarioResuelto = tipoCampo.tipoUsuario();
+            }
+
+            Type tipoValor = ((ASTNode) valor).accept(this);
+            String tipoUsuarioValor = tipoUsuarioDe(valor);
+            if (tipoCampo.tipo() == Type.ESTRUCTURA && (valor instanceof ArrayLiteralNode || tipoValor == Type.ESTRUCTURA)) {
+                tipoValor = Type.ESTRUCTURA;
+                if (tipoUsuarioValor == null) tipoUsuarioValor = tipoCampo.tipoUsuario();
+            }
+
+            if (!TypeCoercionTable.compatibles(tipoCampo.tipo(), tipoCampo.tipoUsuario(), tipoValor, tipoUsuarioValor)) {
+                throw new SemanticException("El campo '" + nombreCampo + "' de '" + nombreEstructura
+                        + "' espera " + etiquetaTipo(tipoCampo.tipo(), tipoCampo.tipoUsuario()) + ", se dio "
+                        + etiquetaTipo(tipoValor, tipoUsuarioValor) + " (línea " + n.getLine() + ")");
+            }
+        }
+
+        n.tipoResuelto = Type.ESTRUCTURA;
+        return Type.ESTRUCTURA;
     }
 }
