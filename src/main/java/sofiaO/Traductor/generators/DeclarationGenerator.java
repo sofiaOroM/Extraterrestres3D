@@ -59,10 +59,23 @@ public class DeclarationGenerator {
         for (var m : n.metodos) nombresMetodos.add(m.nombre);
 
         ctx.enterClass(n.nombre, nombresAtributos, nombresMetodos);
+        if (n.constructores.isEmpty()) {
+            generarConstructorPorDefecto(n.nombre);
+        }
         for (var c : n.constructores) ctx.generate(c);
         for (var m : n.metodos) ctx.generate(m);
         ctx.exitClass();
         return null;
+    }
+
+    private void generarConstructorPorDefecto(String claseDuena) {
+        String nombreCompleto = nombreInitPara(claseDuena, 0);
+        ctx.emit("func", "void", null, nombreCompleto, Type.VOID);
+        ctx.startLocals(new HashSet<>());
+        ctx.emit("param", "this", null, null, Type.CLASE);
+        ctx.placeTypes().put("this", Type.CLASE);
+        ctx.placeUserTypes().put("this", claseDuena);
+        ctx.emit("endfunc", null, null, nombreCompleto, Type.VOID);
     }
 
     public String visit(FunctionDeclNode n) {
@@ -144,7 +157,7 @@ public class DeclarationGenerator {
             String valor = ctx.generate((ASTNode) n.inicializador);
             ctx.emit("=", valor, null, n.nombre, tipo);
         } else if (tipo == Type.ESTRUCTURA && n.dimensionesArreglo.isEmpty()) {
-             String tipoUsr = ctx.placeUserTypes().get(n.nombre);
+            String tipoUsr = ctx.placeUserTypes().get(n.nombre);
             ctx.emit("new", tipoUsr, null, n.nombre, Type.ESTRUCTURA);
             inicializarCamposEstructura(n.nombre, tipoUsr);
         }

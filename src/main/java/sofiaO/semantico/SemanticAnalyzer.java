@@ -341,6 +341,19 @@ public class SemanticAnalyzer implements ASTVisitor<Type> {
             throw new SemanticException("El nombre '" + n.nombre + "' ya está usado por una función importada (línea " + n.getLine() + ")");
         }
 
+        if (n.modo == ParamNode.ModoPaso.REFERENCIA_ARREGLO && n.dimensionesArreglo.size() > 1) {
+            for (int i = 1; i < n.dimensionesArreglo.size(); i++) {
+                if (n.dimensionesArreglo.get(i) < 0) {
+                    throw new SemanticException("El parámetro '" + n.nombre
+                            + "' es un arreglo de " + n.dimensionesArreglo.size()
+                            + " dimensiones por referencia, pero no se conoce el tamaño de sus"
+                            + " dimensiones internas (línea " + n.getLine()
+                            + "). Indícalo en la propia declaración del parámetro"
+                            + " (como en Y?: '[][3] entero " + n.nombre + "').");
+                }
+            }
+        }
+
         scopeActual.declarar(n.nombre, rt.tipo(), rt.tipoUsuario(), n.getLine(), n.getColumn());
         return rt.tipo();
     }

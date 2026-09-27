@@ -87,11 +87,18 @@ public class ZetarianoASTBuilder extends ZetarianoLanguageBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitParametro(ZetarianoLanguageParser.ParametroContext ctx) {
-        String tipoBase = tipoBaseSinCorchetes(ctx.tipo().getText());
-        // Zetariano no distingue paso por referencia en la sintaxis del
-        // parámetro (a diferencia de Y?, que usa [] y {} explícitos).
-        return new ParamNode(tipoBase, ctx.ID().getText(), ParamNode.ModoPaso.VALOR,
-                ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+        String textoTipo = ctx.tipo().getText();
+        String tipoBase = tipoBaseSinCorchetes(textoTipo);
+        List<Integer> dimensiones = dimensionesDesdeTipo(textoTipo);
+        int line = ctx.getStart().getLine();
+        int column = ctx.getStart().getCharPositionInLine();
+        if (!dimensiones.isEmpty()) {
+            ParamNode p = new ParamNode(tipoBase, ctx.ID().getText(),
+                    ParamNode.ModoPaso.REFERENCIA_ARREGLO, line, column);
+            p.dimensionesArreglo.addAll(dimensiones);
+            return p;
+        }
+        return new ParamNode(tipoBase, ctx.ID().getText(), ParamNode.ModoPaso.VALOR, line, column);
     }
 
     private List<Statement> convertirBloque(ZetarianoLanguageParser.BloqueContext ctx) {

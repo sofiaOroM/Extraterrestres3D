@@ -21,51 +21,55 @@ public class Main {
         // ---------------------------------------------------------
         String codigoY = """
 %estructuras
-    estructura Rango:
-        entero minimo
-        entero maximo
+    estructura Rectangulo:
+        entero ancho
+        entero alto
 
 %funciones
-    definir potencia(entero base, entero exponente) -> entero :
-        si (exponente == 0) entonces
-            retornar 1
-        retornar base * potencia(base, exponente - 1)
+    definir calcularArea({} Rectangulo r) -> entero :
+        retornar r.ancho * r.alto
+
+    definir calcularPerimetro({} Rectangulo r) -> entero :
+        retornar 2 * (r.ancho + r.alto)
 """.stripIndent();
 
         String codigoZ = """
-        public class Acumulador {
-            int total;
+        public class Transformador {
+            int factor;
 
-            public Acumulador(int base) {
-                total = base;
+            public Transformador(int f) {
+                factor = f;
             }
 
-            public int acumularPotencia(int base, int exp) {
-                int temp;
-                temp = base;
-                total = total + temp;
-                return total;
+            public int escalarArea(int area) {
+                return area * factor;
             }
         }
         """;
 
         String codigoPig = """
         import utilidades.y
-        import Acumulador.z
+        import Transformador.z
 
         VARIABILES>
-        esto baseNum : numerus 2;
-        esto expNum : numerus 4;
+        esto rect : Rectangulo;
 
         MAIOR>
-        esto ac : Acumulador novus Acumulador(10);
-        esto pot : numerus 0;
-        pot = potencia(baseNum, expNum);
-        >> pot;
+        rect.ancho = 5;
+        rect.alto = 8;
 
-        esto totalAcumulado : numerus 0;
-        totalAcumulado = ac.acumularPotencia(baseNum, expNum);
-        >> totalAcumulado;
+        esto area : numerus 0;
+        area = calcularArea(rect);
+        >> area;
+
+        esto perimetro : numerus 0;
+        perimetro = calcularPerimetro(rect);
+        >> perimetro;
+
+        esto t : Transformador novus Transformador(3);
+        esto areaEscalada : numerus 0;
+        areaEscalada = t.escalarArea(area);
+        >> areaEscalada;
         FINIS;
         """;
 
